@@ -44,7 +44,7 @@ def modificarPixelsImagem(pix, dados_binarios):
                 pixel = next(imdata)
                 pixels.extend(list(pixel[:3]))
         except StopIteration:
-            # Se não houver mais pixels, parar o gerador
+            # Se não tiver mais pixels, parar o gerador
             # Não fazer yield se não temos 9 valores
             break
         
@@ -97,9 +97,10 @@ def codificar():
     # Verificar se a imagem cover é grande o suficiente
     cover_pixels = imagem_cover.size[0] * imagem_cover.size[1]
     secreta_pixels = imagem_secreta.size[0] * imagem_secreta.size[1]
-    # Cada pixel da imagem secreta precisa de 3 pixels da cover (24 bits / 8 bits por pixel = 3)
-    # Mais 32 bits para largura e altura = 4 pixels adicionais
-    pixels_necessarios = (secreta_pixels * 3) + 4
+    # Cada grupo de 3 pixels da cover esconde 8 bits
+    # Cada pixel RGB da imagem secreta tem 24 bits = precisa de 3 grupos = 9 pixels da cover
+    # Dimensões (32 bits) = 4 grupos = 12 pixels da cover
+    pixels_necessarios = (secreta_pixels * 9) + 12
     
     if cover_pixels < pixels_necessarios:
         raise ValueError(f"Imagem cover muito pequena! Precisa de pelo menos {pixels_necessarios} pixels, mas tem apenas {cover_pixels}")
@@ -112,6 +113,12 @@ def codificar():
     formato = new_img_name.split(".")[-1].upper()
     formato_map = {'JPG': 'JPEG', 'JPE': 'JPEG'}
     formato = formato_map.get(formato, formato)
+    
+    # Aviso sobre JPEG: formato com perda pode corromper a esteganografia
+    if formato == 'JPEG':
+        print("AVISO: JPEG é um formato com perda e pode corromper a esteganografia!")
+        print("A compressão JPEG pode alterar os valores dos pixels, fazendo com que a decodificação falhe.")
+        print("Recomendado usar PNG para preservar os valores exatos dos pixels.")
     
     newimg.save(new_img_name, formato)
     print(f"Imagem codificada salva como {new_img_name}")
@@ -141,6 +148,10 @@ def decodificar():
         if pixels[-1] % 2 != 0:
             break
     
+    # Verificar se temos bits suficientes (pelo menos 32 bits para largura e altura)
+    if len(bits) < 32:
+        raise ValueError(f"Não há bits suficientes para decodificar! Apenas {len(bits)} bits foram lidos. A imagem pode ter sido corrompida ou salva como JPEG.")
+    
     # Converter bits para dados da imagem
     # Primeiros 16 bits = largura
     largura_bin = ''.join(bits[0:16])
@@ -153,13 +164,23 @@ def decodificar():
     # Resto dos bits = pixels da imagem (cada pixel = 24 bits = 3 bytes RGB)
     pixels_bits = bits[32:]
     total_pixels = largura * altura
+    bits_necessarios = total_pixels * 24
+    
+    # Verificar se temos bits suficientes para todos os pixels
+    if len(pixels_bits) < bits_necessarios:
+        print(f"AVISO: Apenas {len(pixels_bits)} de {bits_necessarios} bits foram lidos para os pixels.")
+        print("Isso pode acontecer se a imagem foi salva como JPEG (formato com perda).")
+        print("Recomendado usar PNG para preservar os valores exatos dos pixels.")
     
     # Criar lista de pixels
     pixels_imagem = []
     for i in range(total_pixels):
         pixel_start = i * 24
         if pixel_start + 24 > len(pixels_bits):
-            break
+            # Se não houver bits suficientes, preencher com zeros (preto)
+            # Isso pode acontecer se a imagem foi salva como JPEG e houve compressão
+            pixels_imagem.append((0, 0, 0))
+            continue
         
         # Extrair R, G, B (8 bits cada)
         r_bin = ''.join(pixels_bits[pixel_start:pixel_start+8])
@@ -171,6 +192,12 @@ def decodificar():
         b = int(b_bin, 2)
         
         pixels_imagem.append((r, g, b))
+    
+    # Verificar se temos pixels suficientes
+    if len(pixels_imagem) < total_pixels:
+        print(f"AVISO: Apenas {len(pixels_imagem)} de {total_pixels} pixels foram decodificados.")
+        print("Isso pode acontecer se a imagem foi salva como JPEG (formato com perda).")
+        print("Recomendado usar PNG para preservar os valores exatos dos pixels.")
     
     # Criar a imagem secreta
     imagem_secreta = Image.new('RGB', (largura, altura))
