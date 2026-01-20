@@ -98,7 +98,7 @@ Imagem codificada salva como resultado.png
 
 4. **Segurança**: Esta é uma implementação educacional. Para uso em produção, considere técnicas adicionais de segurança e criptografia.
 
-## 🔍 Como Funciona Tecnicamente
+##  Como Funciona Tecnicamente
 
 ### Algoritmo de Codificação
 
